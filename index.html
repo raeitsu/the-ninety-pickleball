@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Ninety Pickleball Court | Court Booking</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            court: {
+              50: '#f0fdf9',
+              100: '#ccfbef',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+            },
+            optic: {
+              300: '#fef08a',
+              400: '#facc15',
+              500: '#eab308',
+            },
+            slate: {
+              850: '#15202b',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-optic-400 selection:text-slate-900">
+
+  <!-- Toast Notification Container (Replaces alert()) -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Custom Confirmation Modal (Replaces confirm()) -->
+  <div id="cancel-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+      <div class="flex items-center gap-3 text-rose-600 mb-3">
+        <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center">
+          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </div>
+        <h3 class="font-display text-lg font-bold text-slate-900">Cancel Reservation?</h3>
+      </div>
+      <p class="text-sm text-slate-600 mb-6 leading-relaxed">
+        Are you sure you want to cancel booking <span id="modal-booking-id" class="font-mono font-semibold text-slate-900"></span>? This will immediately release your reserved court time slots back to the schedule.
+      </p>
+      <div class="flex items-center justify-end gap-3">
+        <button type="button" id="modal-keep-btn" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition">
+          Keep Booking
+        </button>
+        <button type="button" id="modal-confirm-cancel-btn" class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition">
+          Yes, Cancel Court
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment QR & Reference Verification Modal -->
+  <div id="pay-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-court-100 text-court-700 flex items-center justify-center">
+            <i data-lucide="qr-code" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-display text-base font-bold text-slate-900">Down Payment (<span id="pay-modal-bn-title" class="font-mono text-court-700"></span>)</h3>
+            <p class="text-[11px] text-slate-500">50% Required: <strong id="pay-modal-dp-amount" class="text-slate-800">₱0.00</strong></p>
+          </div>
+        </div>
+        <button type="button" onclick="closePayModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- STEP 1: QR Code Scan View -->
+      <div id="pay-step-qr" class="pt-4 space-y-4">
+        <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center space-y-3">
+          <p class="text-xs font-semibold text-slate-700">Scan QR Code to send your 50% down payment</p>
+          <!-- Test QR Image (Replace src with your GCash/Maya QR image URL later) -->
+          <div class="w-56 h-56 mx-auto bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden">
+            <img id="payment-qr-image"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=TheNinetyPickleballCourt-TestQR"
+              onerror="this.onerror=null;this.src='https://placehold.co/240x240/0f172a/facc15?text=TEST+QR+CODE';"
+              alt="Payment QR Code"
+              class="w-full h-full object-contain rounded-lg" />
+          </div>
+          <p class="text-[11px] text-slate-500">After scanning & completing payment, click <strong>Next</strong> below to enter your reference number.</p>
+        </div>
+
+        <div class="flex items-center justify-end pt-1">
+          <button type="button" onclick="goToPayStepForm()" class="px-5 py-2.5 rounded-xl bg-court-600 hover:bg-court-700 text-white text-sm font-bold shadow-sm transition inline-flex items-center gap-1.5">
+            <span>Next</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2: Payment Proof Form -->
+      <form id="pay-step-form" autocomplete="off" class="hidden pt-4 space-y-3.5">
+        <div>
+          <label for="pay-input-name" class="block text-xs font-semibold text-slate-700 mb-1">1. Full Name <span class="text-rose-500">*</span></label>
+          <input type="text" id="pay-input-name" name="pay_name_field" autocomplete="off" required placeholder="Enter your full name" class="w-full text-sm rounded-xl border border-slate-300 px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-court-500" />
+        </div>
+
+        <div>
+          <label for="pay-input-number" class="block text-xs font-semibold text-slate-700 mb-1">2. Registered Phone Number <span class="text-rose-500">*</span></label>
+          <input type="text" id="pay-input-number" name="pay_number_field" autocomplete="off" required placeholder="Enter exact phone number used in booking" class="w-full text-sm rounded-xl border border-slate-300 px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-court-500" />
+          <p class="text-[11px] text-slate-400 mt-1">Must match the exact phone number registered under this BN.</p>
+        </div>
+
+        <div>
+          <label for="pay-input-bn" class="block text-xs font-semibold text-slate-700 mb-1">3. Booking Number (BN) <span class="text-rose-500">*</span></label>
+          <input type="text" id="pay-input-bn" autocomplete="off" required readonly class="w-full text-sm font-mono font-bold rounded-xl border border-slate-200 bg-slate-100 text-slate-800 px-3.5 py-2 focus:outline-none" />
+        </div>
+
+        <div>
+          <label for="pay-input-ref" class="block text-xs font-semibold text-slate-700 mb-1">4. Payment Reference Number <span class="text-rose-500">*</span></label>
+          <input type="text" id="pay-input-ref" name="pay_ref_field" autocomplete="off" required placeholder="e.g., 001234567890" class="w-full text-sm font-mono rounded-xl border border-slate-300 px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-court-500" />
+        </div>
+
+        <p id="pay-form-error" class="text-xs font-semibold text-rose-600 hidden"></p>
+
+        <div class="flex items-center justify-between pt-2">
+          <button type="button" onclick="goToPayStepQr()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">
+            ← Back to QR
+          </button>
+          <button type="submit" id="pay-submit-btn" class="px-5 py-2.5 rounded-xl bg-court-600 hover:bg-court-700 text-white text-sm font-bold shadow-sm transition">
+            Done
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-court-500 to-teal-600 flex items-center justify-center shadow-inner relative">
+          <svg class="w-6 h-6 text-optic-400" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="9" cy="8" r="1.2" fill="#064e3b" />
+            <circle cx="15" cy="8" r="1.2" fill="#064e3b" />
+            <circle cx="12" cy="12" r="1.2" fill="#064e3b" />
+            <circle cx="8" cy="14" r="1.2" fill="#064e3b" />
+            <circle cx="16" cy="14" r="1.2" fill="#064e3b" />
+            <circle cx="12" cy="17" r="1.2" fill="#064e3b" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-display font-extrabold text-lg sm:text-xl tracking-tight text-white">THE <span class="text-optic-400">NINETY</span></span>
+          <span class="hidden sm:inline-block text-xs text-slate-400 ml-2 border-l border-slate-700 pl-2">Pickleball Court</span>
+        </div>
+      </div>
+
+      <!-- View Switcher Tabs -->
+      <nav class="flex items-center bg-slate-800/90 p-1 rounded-xl border border-slate-700/70">
+        <button type="button" id="tab-book" onclick="switchTab('book')" class="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all bg-court-600 text-white shadow-sm">
+          <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+          <span>Book a Court</span>
+        </button>
+        <button type="button" id="tab-bookings" onclick="switchTab('bookings')" class="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white transition-all relative">
+          <i data-lucide="ticket" class="w-4 h-4"></i>
+          <span>List of Bookings</span>
+          <span id="bookings-badge" class="ml-1 bg-optic-400 text-slate-900 text-xs font-extrabold px-1.5 py-0.5 rounded-full hidden">0</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: BOOK A COURT                       -->
+    <!-- ========================================== -->
+    <div id="view-book" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+      <!-- Left Column: Court Showcase, Date/Time Picker & Add-ons -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- Step 1: Single Court Showcase -->
+        <section class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-court-100 text-court-800 font-display font-bold text-sm flex items-center justify-center">1</span>
+              <h2 class="font-display text-lg font-bold text-slate-900">Your Court</h2>
+            </div>
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-court-700 bg-court-50 px-2.5 py-1 rounded-full border border-court-200/70">
+              <span class="w-1.5 h-1.5 rounded-full bg-court-500 animate-pulse"></span>
+              Exclusive Single-Court Club
+            </span>
+          </div>
+
+          <div id="court-showcase"></div>
+        </section>
+
+        <!-- Step 2: Select Date & Time Slots -->
+        <section class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-court-100 text-court-800 font-display font-bold text-sm flex items-center justify-center">2</span>
+              <h2 class="font-display text-lg font-bold text-slate-900">Select Date & Time</h2>
+            </div>
+
+            <!-- Date Picker Control -->
+            <div class="flex items-center gap-2">
+              <label for="date-input" class="text-xs font-medium text-slate-500">Jump to date:</label>
+              <input type="date" id="date-input" class="text-sm font-medium bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-court-500 focus:border-court-500" />
+            </div>
+          </div>
+
+          <!-- Quick Date Pills -->
+          <div id="quick-dates" class="flex gap-2 overflow-x-auto pb-3 mb-5"></div>
+
+          <!-- Legend -->
+          <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600 mb-4 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded bg-white border border-slate-300"></span>
+              <span>Available</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded bg-court-600"></span>
+              <span>Selected</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded bg-slate-100 border border-slate-200"></span>
+              <span class="text-slate-400">Booked / Pending / Unavailable</span>
+            </div>
+            <span class="ml-auto text-slate-400 hidden sm:inline">Tap multiple hours for extended play</span>
+          </div>
+
+          <!-- Time Slots Grid (6:00 AM - 10:00 PM) -->
+          <div id="timeslots-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5"></div>
+        </section>
+
+        <!-- Step 3: Equipment & Gear Rentals -->
+        <section class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div class="flex items-center gap-2.5 mb-4">
+            <span class="w-7 h-7 rounded-lg bg-court-100 text-court-800 font-display font-bold text-sm flex items-center justify-center">3</span>
+            <div>
+              <h2 class="font-display text-lg font-bold text-slate-900">Gear & Equipment Add-ons</h2>
+              <p class="text-xs text-slate-500">Need paddles or tournament balls? Add them to your reservation.</p>
+            </div>
+          </div>
+
+          <div id="addons-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </section>
+      </div>
+
+      <!-- Right Column: Sticky Booking Summary & Player Checkout -->
+      <div class="lg:col-span-4 lg:sticky lg:top-24">
+        <div class="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-200/90 overflow-hidden">
+          <!-- Summary Card Header -->
+          <div class="bg-slate-900 text-white p-5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-optic-400">Reservation Summary</span>
+              <i data-lucide="sparkles" class="w-4 h-4 text-optic-400"></i>
+            </div>
+            <h3 class="font-display text-xl font-bold mt-1">The Ninety Pickleball Court</h3>
+            <p id="summary-court-rate" class="text-xs text-slate-300 mt-0.5">₱200.00/hr</p>
+          </div>
+
+          <!-- Summary Details -->
+          <form id="booking-form" class="p-5 space-y-4">
+            <!-- Selected Date & Times -->
+            <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/70 space-y-2.5">
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-500 flex items-center gap-1.5">
+                  <i data-lucide="calendar" class="w-4 h-4 text-court-600"></i> Date
+                </span>
+                <span id="summary-date" class="font-semibold text-slate-900">Today</span>
+              </div>
+
+              <div class="flex items-start justify-between text-sm">
+                <span class="text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <i data-lucide="clock" class="w-4 h-4 text-court-600"></i> Time Slots
+                </span>
+                <div id="summary-slots-container" class="flex flex-wrap justify-end gap-1 max-w-[200px]">
+                  <span class="text-xs text-slate-400 italic">No time slots selected yet</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match Format / Player Count -->
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Match Format</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="btn-singles" onclick="setPlayers(2)" class="p-2.5 rounded-xl border text-left transition flex items-center justify-between border-slate-200 hover:border-court-500 bg-white">
+                  <div>
+                    <div class="text-xs font-bold text-slate-900">Singles</div>
+                    <div class="text-[11px] text-slate-500">2 Players</div>
+                  </div>
+                  <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                </button>
+                <button type="button" id="btn-doubles" onclick="setPlayers(4)" class="p-2.5 rounded-xl border-2 text-left transition flex items-center justify-between border-court-600 bg-court-50/60">
+                  <div>
+                    <div class="text-xs font-bold text-slate-900">Doubles</div>
+                    <div class="text-[11px] text-slate-500">4 Players</div>
+                  </div>
+                  <i data-lucide="users" class="w-4 h-4 text-court-600"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Player Contact Inputs -->
+            <div class="space-y-3 pt-1">
+              <div>
+                <label for="player-name" class="block text-xs font-semibold text-slate-700 mb-1">Full Name <span class="text-rose-500">*</span></label>
+                <input type="text" id="player-name" name="booking_player_name" autocomplete="off" required placeholder="e.g., Juan Dela Cruz" class="w-full text-sm rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-court-500 focus:border-court-500" />
+              </div>
+              <div>
+                <label for="player-contact" class="block text-xs font-semibold text-slate-700 mb-1">Phone Number <span class="text-rose-500">*</span></label>
+                <input type="text" id="player-contact" name="booking_player_contact" autocomplete="off" required placeholder="e.g., 09171234567" class="w-full text-sm rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-court-500 focus:border-court-500" />
+              </div>
+            </div>
+
+            <!-- Price Breakdown -->
+            <div class="border-t border-slate-200 pt-3.5 space-y-2 text-sm">
+              <div class="flex justify-between text-slate-600">
+                <span id="price-court-label">Court Rental (0 hrs)</span>
+                <span id="price-court-amount" class="font-medium text-slate-900">₱0.00</span>
+              </div>
+              <div id="price-addons-breakdown" class="space-y-1.5"></div>
+              <div class="flex justify-between items-center pt-2.5 border-t border-dashed border-slate-200">
+                <span class="font-display font-bold text-slate-900">Total Amount</span>
+                <span id="price-total" class="font-display text-2xl font-extrabold text-court-700">₱0.00</span>
+              </div>
+              <div class="flex justify-between items-center bg-amber-50 border border-amber-200/90 rounded-xl px-3 py-2 text-xs">
+                <span class="font-semibold text-amber-900">50% Down Payment Required</span>
+                <span id="price-downpayment" class="font-display font-extrabold text-amber-800">₱0.00</span>
+              </div>
+            </div>
+
+            <!-- 50% Down Payment Notice -->
+            <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed flex items-start gap-2">
+              <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+              <span>
+                <strong>Note:</strong> Down payment should be <strong>half (50%)</strong> of the actual booking payment. Your reservation will stay <strong>Pending</strong> until the admin verifies your down payment.
+              </span>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="confirm-booking-btn" disabled class="w-full py-3.5 px-4 rounded-xl font-display font-bold text-sm text-white bg-court-600 hover:bg-court-700 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-md shadow-court-600/20 transition-all flex items-center justify-center gap-2">
+              <span>Request Reservation</span>
+              <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: LIST OF BOOKINGS                   -->
+    <!-- ========================================== -->
+    <div id="view-bookings" class="hidden max-w-4xl mx-auto space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div>
+          <h1 class="font-display text-2xl font-extrabold text-slate-900">List of Reservations</h1>
+          <p class="text-sm text-slate-500 mt-0.5">View court reservations and status updates—no login or sign-up required.</p>
+        </div>
+        <button type="button" onclick="switchTab('book')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-court-600 hover:bg-court-700 text-white text-sm font-semibold transition shadow-sm">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>New Booking</span>
+        </button>
+      </div>
+
+      <!-- Bookings List Container -->
+      <div id="bookings-list" class="space-y-4"></div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 mt-12 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-court-500"></span>
+        <span>The Ninety Pickleball Court • Open Daily 6:00 AM – 10:00 PM</span>
+      </div>
+      <div>Regulation Pro Court • Instant Online Reservations</div>
+    </div>
+  </footer>
+
+  <script>
+    // =========================================================================
+    // 1. CONFIGURATION & CONSTANTS
+    // =========================================================================
+    const SINGLE_COURT = {
+      id: 'main-court',
+      name: 'The Ninety Pickleball Court',
+      subtitle: 'Main Regulation Court • Private Session',
+      surface: 'Pro Cushion Acrylic Surface',
+      lighting: 'Anti-Glare LED Night Lights',
+      amenities: 'Player Bench & Shade Lounge',
+      defaultRate: 200
+    };
+
+    // 6:00 AM to 10:00 PM (16 hourly slots: 6 AM through 9 PM–10 PM)
+    const TIME_SLOTS = Array.from({ length: 16 }, (_, idx) => {
+      const hour = idx + 6;
+      const formatHour = (h) => {
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 === 0 ? 12 : h % 12;
+        return `${displayH}:00 ${period}`;
+      };
+      return {
+        hour,
+        label: formatHour(hour),
+        range: `${formatHour(hour)} - ${formatHour(hour + 1)}`
+      };
+    });
+
+    const PADDLE_PRICE = 50;
+    const BALLS_PRICE = 100;
+
+    const STORAGE_KEY = 'the_ninety_pickleball_bookings_v2';
+    const RATE_STORAGE_KEY = 'the_ninety_pickleball_rate_v3';
+    const PADDLE_RATE_STORAGE_KEY = 'the_ninety_pickleball_paddle_rate_v1';
+    const BLOCKED_SLOTS_STORAGE_KEY = 'the_ninety_pickleball_blocked_v1';
+    const MY_BOOKING_IDS_KEY = 'the_ninety_my_booking_ids_v1';
+    const API_URL = 'api.php';
+
+    // =========================================================================
+    // 2. DATE & CURRENCY UTILITIES
+    // =========================================================================
+    function getTodayISO() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function addDaysISO(baseIso, daysToAdd) {
+      const [y, m, d] = baseIso.split('-').map(Number);
+      const dt = new Date(y, m - 1, d + daysToAdd);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatDisplayDate(isoStr) {
+      if (!isoStr) return '';
+      const [y, m, d] = isoStr.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      const today = getTodayISO();
+      const label = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      return isoStr === today ? `Today (${label})` : label;
+    }
+
+    function formatPHP(amount) {
+      return '₱' + Number(amount || 0).toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function refreshIcons() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+
+    // =========================================================================
+    // 3. LOCAL STORAGE & SERVER SYNC HELPERS
+    // =========================================================================
+    function loadCourtRate() {
+      const saved = Number(localStorage.getItem(RATE_STORAGE_KEY));
+      return saved > 0 ? saved : SINGLE_COURT.defaultRate;
+    }
+
+    function saveCourtRate(rate) {
+      try { localStorage.setItem(RATE_STORAGE_KEY, String(rate)); } catch (e) {}
+    }
+
+    function loadPaddleRate() {
+      const raw = localStorage.getItem(PADDLE_RATE_STORAGE_KEY);
+      return raw !== null && !isNaN(Number(raw)) ? Number(raw) : PADDLE_PRICE;
+    }
+
+    function savePaddleRate(rate) {
+      try { localStorage.setItem(PADDLE_RATE_STORAGE_KEY, String(rate)); } catch (e) {}
+    }
+
+    function loadBlockedSlots() {
+      try {
+        const raw = localStorage.getItem(BLOCKED_SLOTS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveBlockedSlots(blocked) {
+      try {
+        localStorage.setItem(BLOCKED_SLOTS_STORAGE_KEY, JSON.stringify(blocked));
+      } catch (e) {
+        console.error('Failed to save blocked slots', e);
+      }
+    }
+
+    function getMyBookingIds() {
+      try {
+        const raw = localStorage.getItem(MY_BOOKING_IDS_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function addMyBookingId(id) {
+      const ids = getMyBookingIds();
+      if (!ids.includes(id)) {
+        ids.unshift(id);
+        localStorage.setItem(MY_BOOKING_IDS_KEY, JSON.stringify(ids));
+      }
+    }
+
+    function saveBookings(bookings) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+      } catch (e) {
+        console.error('Failed to save bookings', e);
+      }
+    }
+
+    function getInitialBookings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    // =========================================================================
+    // 4. APPLICATION STATE
+    // =========================================================================
+    const state = {
+      activeTab: 'book',
+      courtRate: loadCourtRate(),
+      paddleRate: loadPaddleRate(),
+      blockedSlots: loadBlockedSlots(),
+      selectedDate: getTodayISO(),
+      selectedSlots: [],
+      players: 4,
+      paddleQty: 0,
+      hasBalls: false,
+      bookings: getInitialBookings(),
+      pendingCancelId: null,
+      payingBookingId: null
+    };
+
+    async function syncFromServer(silent = true) {
+      try {
+        const res = await fetch(`${API_URL}?action=get_state&_=${Date.now()}`);
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (data && data.success) {
+          state.courtRate = Number(data.courtRate) || SINGLE_COURT.defaultRate;
+          state.paddleRate = data.paddleRate !== undefined ? Number(data.paddleRate) : PADDLE_PRICE;
+          state.blockedSlots = (data.blockedSlots && typeof data.blockedSlots === 'object' && !Array.isArray(data.blockedSlots))
+            ? data.blockedSlots
+            : {};
+          const myIds = getMyBookingIds();
+          state.bookings = (data.bookings || []).map(b => ({
+            ...b,
+            isUserBooking: myIds.includes(b.id)
+          }));
+
+          // Deselect any currently chosen slot that became blocked or booked by someone else
+          const blockedForDate = new Set((state.blockedSlots[state.selectedDate] || []).map(Number));
+          const bookedForDate = new Set();
+          state.bookings.forEach(b => {
+            if (b.date === state.selectedDate && (b.status === 'Confirmed' || b.status === 'Pending') && Array.isArray(b.slots)) {
+              b.slots.forEach(h => bookedForDate.add(Number(h)));
+            }
+          });
+          state.selectedSlots = state.selectedSlots.filter(h => !blockedForDate.has(Number(h)) && !bookedForDate.has(Number(h)));
+
+          saveCourtRate(state.courtRate);
+          savePaddleRate(state.paddleRate);
+          saveBlockedSlots(state.blockedSlots);
+          saveBookings(state.bookings);
+
+          renderAll();
+          return true;
+        }
+      } catch (err) {
+        if (!silent) console.warn('Offline/Local fallback active:', err);
+      }
+      return false;
+    }
+
+    // =========================================================================
+    // 5. GLOBAL INTERACTIVE HANDLERS
+    // =========================================================================
+    window.switchTab = function(tabName) {
+      state.activeTab = tabName;
+      const viewBook = document.getElementById('view-book');
+      const viewBookings = document.getElementById('view-bookings');
+      const tabBook = document.getElementById('tab-book');
+      const tabBookings = document.getElementById('tab-bookings');
+
+      if (!viewBook || !viewBookings || !tabBook || !tabBookings) return;
+
+      const activeClass = 'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all bg-court-600 text-white shadow-sm';
+      const inactiveClass = 'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white transition-all relative';
+
+      if (tabName === 'book') {
+        viewBook.classList.remove('hidden');
+        viewBookings.classList.add('hidden');
+        tabBook.className = activeClass;
+        tabBookings.className = inactiveClass;
+      } else {
+        viewBook.classList.add('hidden');
+        viewBookings.classList.remove('hidden');
+        tabBook.className = inactiveClass;
+        tabBookings.className = activeClass;
+        renderMyBookings();
+      }
+      refreshIcons();
+    };
+
+    window.selectDate = function(dateStr) {
+      if (!dateStr) return;
+      state.selectedDate = dateStr;
+      state.selectedSlots = [];
+      const dateInput = document.getElementById('date-input');
+      if (dateInput) dateInput.value = dateStr;
+      renderQuickDates();
+      renderTimeSlots();
+      renderSummary();
+      refreshIcons();
+    };
+
+    window.toggleTimeSlot = function(hour) {
+      const targetHour = Number(hour);
+      const blockedSet = new Set((state.blockedSlots[state.selectedDate] || []).map(Number));
+      if (blockedSet.has(targetHour)) {
+        showToast('This time slot is unavailable.', 'error');
+        renderTimeSlots();
+        return;
+      }
+
+      const idx = state.selectedSlots.indexOf(targetHour);
+      if (idx > -1) {
+        state.selectedSlots.splice(idx, 1);
+      } else {
+        state.selectedSlots.push(targetHour);
+        state.selectedSlots.sort((a, b) => a - b);
+      }
+      renderTimeSlots();
+      renderSummary();
+      refreshIcons();
+    };
+
+    window.setPlayers = function(count) {
+      state.players = count;
+      const btnSingles = document.getElementById('btn-singles');
+      const btnDoubles = document.getElementById('btn-doubles');
+      if (btnSingles && btnDoubles) {
+        if (count === 2) {
+          btnSingles.className = 'p-2.5 rounded-xl border-2 text-left transition flex items-center justify-between border-court-600 bg-court-50/60';
+          btnDoubles.className = 'p-2.5 rounded-xl border text-left transition flex items-center justify-between border-slate-200 hover:border-court-500 bg-white';
+        } else {
+          btnDoubles.className = 'p-2.5 rounded-xl border-2 text-left transition flex items-center justify-between border-court-600 bg-court-50/60';
+          btnSingles.className = 'p-2.5 rounded-xl border text-left transition flex items-center justify-between border-slate-200 hover:border-court-500 bg-white';
+        }
+      }
+      refreshIcons();
+    };
+
+    window.updatePaddleQty = function(delta) {
+      const next = Math.max(0, Math.min(4, state.paddleQty + delta));
+      state.paddleQty = next;
+      renderAddons();
+      renderSummary();
+      refreshIcons();
+    };
+
+    window.toggleBalls = function() {
+      state.hasBalls = !state.hasBalls;
+      renderAddons();
+      renderSummary();
+      refreshIcons();
+    };
+
+    window.openCancelModal = function(bookingId) {
+      state.pendingCancelId = bookingId;
+      const idSpan = document.getElementById('modal-booking-id');
+      if (idSpan) idSpan.textContent = bookingId;
+      const modal = document.getElementById('cancel-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+      refreshIcons();
+    };
+
+    window.closeCancelModal = function() {
+      state.pendingCancelId = null;
+      const modal = document.getElementById('cancel-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    };
+
+    window.openPayModal = function(bookingId) {
+      const booking = state.bookings.find(b => b.id === bookingId);
+      if (!booking) return;
+
+      state.payingBookingId = bookingId;
+      const bnTitle = document.getElementById('pay-modal-bn-title');
+      const dpAmount = document.getElementById('pay-modal-dp-amount');
+      const inputName = document.getElementById('pay-input-name');
+      const inputNumber = document.getElementById('pay-input-number');
+      const inputBn = document.getElementById('pay-input-bn');
+      const inputRef = document.getElementById('pay-input-ref');
+      const errEl = document.getElementById('pay-form-error');
+
+      if (bnTitle) bnTitle.textContent = booking.id;
+      if (dpAmount) dpAmount.textContent = formatPHP(Number(booking.total || 0) * 0.5);
+      // Do not auto-fill personal details so reservist info stays private
+      if (inputName) inputName.value = '';
+      if (inputNumber) inputNumber.value = '';
+      if (inputBn) inputBn.value = booking.id;
+      if (inputRef) inputRef.value = '';
+      if (errEl) errEl.classList.add('hidden');
+
+      goToPayStepQr();
+
+      const modal = document.getElementById('pay-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+      refreshIcons();
+    };
+
+    window.closePayModal = function() {
+      state.payingBookingId = null;
+      const modal = document.getElementById('pay-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    };
+
+    window.goToPayStepQr = function() {
+      const stepQr = document.getElementById('pay-step-qr');
+      const stepForm = document.getElementById('pay-step-form');
+      if (stepQr) stepQr.classList.remove('hidden');
+      if (stepForm) stepForm.classList.add('hidden');
+      refreshIcons();
+    };
+
+    window.goToPayStepForm = function() {
+      const stepQr = document.getElementById('pay-step-qr');
+      const stepForm = document.getElementById('pay-step-form');
+      const errEl = document.getElementById('pay-form-error');
+      if (stepQr) stepQr.classList.add('hidden');
+      if (stepForm) stepForm.classList.remove('hidden');
+      if (errEl) errEl.classList.add('hidden');
+      refreshIcons();
+    };
+
+    window.confirmCancelBooking = async function() {
+      if (!state.pendingCancelId) return;
+      const targetId = state.pendingCancelId;
+
+      try {
+        const res = await fetch(`${API_URL}?action=cancel_booking`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: targetId })
+        });
+        if (res.ok) {
+          closeCancelModal();
+          await syncFromServer();
+          showToast('Reservation cancelled and court slots released.');
+          return;
+        }
+      } catch (err) {
+        console.warn('Server cancel failed, falling back locally:', err);
+      }
+
+      state.bookings = state.bookings.map(b =>
+        b.id === targetId ? { ...b, status: 'Cancelled' } : b
+      );
+      saveBookings(state.bookings);
+      closeCancelModal();
+      renderAll();
+      showToast('Reservation cancelled and court slots released.');
+    };
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      const bgClass = type === 'error'
+        ? 'bg-rose-600 text-white'
+        : 'bg-slate-900 text-white border border-slate-700';
+      toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 pointer-events-auto transition-all`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    // =========================================================================
+    // 6. UI RENDERERS
+    // =========================================================================
+    function renderCourtShowcase() {
+      const el = document.getElementById('court-showcase');
+      if (!el) return;
+      el.innerHTML = `
+        <div class="rounded-2xl border-2 border-court-600 bg-gradient-to-br from-court-50/80 via-white to-slate-50 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-md bg-court-600 text-white text-[10px] font-extrabold uppercase tracking-wider">Court 1</span>
+              <span class="text-xs font-semibold text-slate-500">${SINGLE_COURT.subtitle}</span>
+            </div>
+            <h3 class="font-display text-xl font-extrabold text-slate-900">${SINGLE_COURT.name}</h3>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-1">
+              <span class="inline-flex items-center gap-1"><i data-lucide="layers" class="w-3.5 h-3.5 text-court-600"></i> ${SINGLE_COURT.surface}</span>
+              <span class="inline-flex items-center gap-1"><i data-lucide="sun" class="w-3.5 h-3.5 text-amber-500"></i> ${SINGLE_COURT.lighting}</span>
+              <span class="inline-flex items-center gap-1"><i data-lucide="coffee" class="w-3.5 h-3.5 text-slate-500"></i> ${SINGLE_COURT.amenities}</span>
+            </div>
+          </div>
+          <div class="sm:text-right shrink-0 bg-white px-4 py-3 rounded-xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hourly Rate</div>
+            <div class="font-display text-2xl font-extrabold text-court-700">${formatPHP(state.courtRate)}<span class="text-xs font-medium text-slate-500">/hr</span></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderQuickDates() {
+      const container = document.getElementById('quick-dates');
+      if (!container) return;
+      const today = getTodayISO();
+      const pills = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i));
+
+      container.innerHTML = pills.map(iso => {
+        const [y, m, d] = iso.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const dayName = iso === today ? 'Today' : dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+        const dayNum = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const isSelected = state.selectedDate === iso;
+
+        return `
+          <button type="button" onclick="selectDate('${iso}')"
+            class="shrink-0 px-3.5 py-2 rounded-xl border text-left transition ${
+              isSelected
+                ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-court-500'
+            }">
+            <div class="text-[10px] font-bold uppercase tracking-wider ${isSelected ? 'text-optic-400' : 'text-slate-400'}">${dayName}</div>
+            <div class="text-xs font-bold mt-0.5">${dayNum}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderTimeSlots() {
+      const grid = document.getElementById('timeslots-grid');
+      if (!grid) return;
+
+      const bookedMap = new Map();
+      state.bookings.forEach(b => {
+        if (b.date === state.selectedDate && (b.status === 'Confirmed' || b.status === 'Pending') && Array.isArray(b.slots)) {
+          b.slots.forEach(h => {
+            if (bookedMap.get(Number(h)) !== 'Confirmed') {
+              bookedMap.set(Number(h), b.status);
+            }
+          });
+        }
+      });
+
+      const blockedSet = new Set((state.blockedSlots[state.selectedDate] || []).map(Number));
+
+      grid.innerHTML = TIME_SLOTS.map(slot => {
+        const bookingStatus = bookedMap.get(slot.hour);
+        const isBooked = Boolean(bookingStatus);
+        const isBlocked = blockedSet.has(slot.hour);
+        const isSelected = state.selectedSlots.includes(slot.hour);
+
+        if (isBooked || isBlocked) {
+          const statusLabel = isBlocked ? 'Unavailable' : (bookingStatus === 'Pending' ? 'Pending DP' : 'Booked');
+          return `
+            <button type="button" disabled
+              class="p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-left cursor-not-allowed opacity-75">
+              <div class="text-xs font-bold line-through">${slot.label}</div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider mt-0.5">${statusLabel}</div>
+            </button>
+          `;
+        }
+
+        return `
+          <button type="button" onclick="toggleTimeSlot(${slot.hour})"
+            class="p-3 rounded-xl border text-left transition ${
+              isSelected
+                ? 'bg-court-600 border-court-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-800 hover:border-court-500 hover:bg-court-50/40'
+            }">
+            <div class="text-xs font-bold">${slot.label}</div>
+            <div class="text-[10px] font-medium mt-0.5 ${isSelected ? 'text-court-100' : 'text-slate-500'}">${formatPHP(state.courtRate)}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderAddons() {
+      const container = document.getElementById('addons-list');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div class="p-4 rounded-xl border ${state.paddleQty > 0 ? 'border-court-600 bg-court-50/40' : 'border-slate-200 bg-white'} flex items-center justify-between gap-3">
+          <div>
+            <div class="text-sm font-bold text-slate-900">Pickleball Paddle Rental</div>
+            <div class="text-xs text-slate-500 mt-0.5">${formatPHP(state.paddleRate)} per paddle • Pro graphite paddle</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="updatePaddleQty(-1)" class="w-8 h-8 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 font-bold text-slate-700 flex items-center justify-center">-</button>
+            <span class="w-6 text-center text-sm font-extrabold text-slate-900">${state.paddleQty}</span>
+            <button type="button" onclick="updatePaddleQty(1)" class="w-8 h-8 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 font-bold text-slate-700 flex items-center justify-center">+</button>
+          </div>
+        </div>
+
+        <button type="button" onclick="toggleBalls()"
+          class="p-4 rounded-xl border text-left transition flex items-center justify-between gap-3 ${
+            state.hasBalls ? 'border-court-600 bg-court-50/40' : 'border-slate-200 bg-white hover:border-court-500'
+          }">
+          <div>
+            <div class="text-sm font-bold text-slate-900">Outdoor Pickleball 3-Pack</div>
+            <div class="text-xs text-slate-500 mt-0.5">${formatPHP(BALLS_PRICE)} • 40-hole tournament balls</div>
+          </div>
+          <span class="px-2.5 py-1 rounded-lg text-xs font-bold ${
+            state.hasBalls ? 'bg-court-600 text-white' : 'bg-slate-100 text-slate-600'
+          }">${state.hasBalls ? 'Added' : '+ Add'}</span>
+        </button>
+      `;
+    }
+
+    function renderSummary() {
+      const rateEl = document.getElementById('summary-court-rate');
+      const dateEl = document.getElementById('summary-date');
+      const slotsEl = document.getElementById('summary-slots-container');
+      const courtLabelEl = document.getElementById('price-court-label');
+      const courtAmtEl = document.getElementById('price-court-amount');
+      const addonsBreakdownEl = document.getElementById('price-addons-breakdown');
+      const totalEl = document.getElementById('price-total');
+      const downpaymentEl = document.getElementById('price-downpayment');
+      const submitBtn = document.getElementById('confirm-booking-btn');
+
+      if (rateEl) rateEl.textContent = `${formatPHP(state.courtRate)}/hr`;
+      if (dateEl) dateEl.textContent = formatDisplayDate(state.selectedDate);
+
+      if (slotsEl) {
+        if (state.selectedSlots.length === 0) {
+          slotsEl.innerHTML = `<span class="text-xs text-slate-400 italic">No time slots selected yet</span>`;
+        } else {
+          slotsEl.innerHTML = state.selectedSlots.map(h => {
+            const slot = TIME_SLOTS.find(s => s.hour === Number(h));
+            return `<span class="px-2 py-0.5 rounded-md bg-court-100 text-court-900 text-xs font-bold">${slot ? slot.label : `${h}:00`}</span>`;
+          }).join('');
+        }
+      }
+
+      const hoursCount = state.selectedSlots.length;
+      const courtSubtotal = hoursCount * state.courtRate;
+      const paddleSubtotal = state.paddleQty * state.paddleRate;
+      const ballsSubtotal = state.hasBalls ? BALLS_PRICE : 0;
+      const grandTotal = courtSubtotal + paddleSubtotal + ballsSubtotal;
+      const downpaymentAmount = grandTotal * 0.5;
+
+      if (courtLabelEl) courtLabelEl.textContent = `Court Rental (${hoursCount} hr${hoursCount === 1 ? '' : 's'})`;
+      if (courtAmtEl) courtAmtEl.textContent = formatPHP(courtSubtotal);
+
+      if (addonsBreakdownEl) {
+        let html = '';
+        if (state.paddleQty > 0) {
+          html += `
+            <div class="flex justify-between text-slate-600">
+              <span>Paddle Rental (${state.paddleQty} × ${formatPHP(state.paddleRate)})</span>
+              <span class="font-medium text-slate-900">${formatPHP(paddleSubtotal)}</span>
+            </div>
+          `;
+        }
+        if (state.hasBalls) {
+          html += `
+            <div class="flex justify-between text-slate-600">
+              <span>Outdoor Pickleball 3-Pack</span>
+              <span class="font-medium text-slate-900">${formatPHP(ballsSubtotal)}</span>
+            </div>
+          `;
+        }
+        addonsBreakdownEl.innerHTML = html;
+      }
+
+      if (totalEl) totalEl.textContent = formatPHP(grandTotal);
+      if (downpaymentEl) downpaymentEl.textContent = formatPHP(downpaymentAmount);
+      if (submitBtn) submitBtn.disabled = hoursCount === 0;
+    }
+
+    function renderMyBookings() {
+      const listEl = document.getElementById('bookings-list');
+      const badgeEl = document.getElementById('bookings-badge');
+      const allBookings = state.bookings;
+      const activeCount = allBookings.filter(b => b.status === 'Confirmed' || b.status === 'Pending').length;
+
+      if (badgeEl) {
+        badgeEl.textContent = String(activeCount);
+        if (activeCount > 0) {
+          badgeEl.classList.remove('hidden');
+        } else {
+          badgeEl.classList.add('hidden');
+        }
+      }
+
+      if (!listEl) return;
+
+      if (allBookings.length === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-2xl p-10 text-center border border-slate-200/80 shadow-sm space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <i data-lucide="calendar-x" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-display text-lg font-bold text-slate-900">No Reservations Yet</h3>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">No court sessions have been reserved yet. Pick your preferred date and hours to reserve your spot!</p>
+            <button type="button" onclick="switchTab('book')" class="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-court-600 text-white text-xs font-bold hover:bg-court-700 transition">
+              Reserve Now
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = allBookings.map(b => {
+        const isCancelled = b.status === 'Cancelled';
+        const isPending = b.status === 'Pending';
+        const isConfirmed = b.status === 'Confirmed';
+        const badgeClass = isCancelled
+          ? 'bg-rose-100 text-rose-700'
+          : (isPending ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+        const slotLabels = (b.slots || [])
+          .slice()
+          .sort((a, c) => a - c)
+          .map(h => {
+            const found = TIME_SLOTS.find(s => s.hour === Number(h));
+            return found ? found.label : `${h}:00`;
+          })
+          .join(', ');
+
+        return `
+          <div class="bg-white rounded-2xl p-5 border ${isCancelled ? 'border-slate-200 opacity-75' : (isPending ? 'border-amber-300' : 'border-slate-200/90')} shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-xs font-extrabold px-2.5 py-0.5 rounded-md bg-slate-900 text-optic-300">${b.id}</span>
+                <span class="text-xs font-bold px-2.5 py-0.5 rounded-full ${badgeClass}">${b.status}</span>
+                <span class="text-xs font-semibold text-slate-600">${formatDisplayDate(b.date)}</span>
+              </div>
+              <h3 class="font-display text-base font-bold text-slate-900">${SINGLE_COURT.name}</h3>
+              <div class="text-xs text-slate-600">
+                <strong>${slotLabels}</strong> • ${b.players || 4} Players
+                ${b.paddleQty > 0 ? ` • ${b.paddleQty} Paddle(s)` : ''}
+                ${b.hasBalls ? ' • Ball 3-Pack' : ''}
+              </div>
+              ${isPending && b.paymentRef ? `<div class="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 inline-block mt-1">Payment Proof Submitted (Awaiting Admin Verification)</div>` : ''}
+              ${isConfirmed ? `<div class="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 inline-block mt-1">Confirmed • Down Payment Verified</div>` : ''}
+              ${isPending ? `<div class="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1">Note: Down payment should be half (50%) of the actual booking payment (<strong>${formatPHP(Number(b.total || 0) * 0.5)}</strong>) to confirm your slot.</div>` : ''}
+            </div>
+            <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+              <span class="font-display text-lg font-extrabold text-slate-900">${formatPHP(b.total)}</span>
+              ${isPending && b.isUserBooking ? `
+                <div class="flex flex-col gap-1.5 w-full sm:w-auto">
+                  <button type="button" onclick="openPayModal('${b.id}')" class="px-4 py-1.5 rounded-xl bg-court-600 hover:bg-court-700 text-white text-xs font-bold shadow-sm transition text-center">
+                    ${b.paymentRef ? 'Update Payment' : 'Pay'}
+                  </button>
+                  <button type="button" onclick="openCancelModal('${b.id}')" class="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition text-center">
+                    Cancel Booking
+                  </button>
+                </div>
+              ` : (isCancelled ? '<span class="text-xs text-slate-400">Slots Released</span>' : (isConfirmed ? '<span class="text-[11px] font-semibold text-emerald-700">Confirmed Slot</span>' : '<span class="text-[11px] text-slate-400">Reserved</span>'))}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderAll() {
+      renderCourtShowcase();
+      renderQuickDates();
+      renderTimeSlots();
+      renderAddons();
+      renderSummary();
+      renderMyBookings();
+      refreshIcons();
+    }
+
+    // =========================================================================
+    // 7. DOM EVENT LISTENERS & INITIALIZATION
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      const dateInput = document.getElementById('date-input');
+      if (dateInput) {
+        dateInput.min = getTodayISO();
+        dateInput.value = state.selectedDate;
+        dateInput.addEventListener('change', (e) => selectDate(e.target.value));
+      }
+
+      const keepBtn = document.getElementById('modal-keep-btn');
+      if (keepBtn) keepBtn.addEventListener('click', closeCancelModal);
+
+      const confirmCancelBtn = document.getElementById('modal-confirm-cancel-btn');
+      if (confirmCancelBtn) confirmCancelBtn.addEventListener('click', confirmCancelBooking);
+
+      const payForm = document.getElementById('pay-step-form');
+      if (payForm) {
+        payForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const booking = state.bookings.find(b => b.id === state.payingBookingId);
+          if (!booking) return;
+
+          const payerName = document.getElementById('pay-input-name').value.trim();
+          const payerNumber = document.getElementById('pay-input-number').value.trim();
+          const bnVal = document.getElementById('pay-input-bn').value.trim();
+          const paymentRef = document.getElementById('pay-input-ref').value.trim();
+          const errEl = document.getElementById('pay-form-error');
+          const submitBtn = document.getElementById('pay-submit-btn');
+
+          // Enforce exact match against the phone number registered on this BN
+          const registeredPhone = String(booking.playerContact || '').trim();
+          if (!registeredPhone || payerNumber !== registeredPhone) {
+            if (errEl) {
+              errEl.textContent = `Registered Phone Number does not match the exact phone number provided for ${booking.id}.`;
+              errEl.classList.remove('hidden');
+            }
+            return;
+          }
+
+          if (errEl) errEl.classList.add('hidden');
+          if (submitBtn) submitBtn.disabled = true;
+
+          try {
+            const res = await fetch(`${API_URL}?action=submit_payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: bnVal,
+                payerName,
+                payerNumber,
+                paymentRef
+              })
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+              if (errEl) {
+                errEl.textContent = data.error || 'Could not verify payment details.';
+                errEl.classList.remove('hidden');
+              }
+              if (submitBtn) submitBtn.disabled = false;
+              return;
+            }
+
+            if (data.success) {
+              if (submitBtn) submitBtn.disabled = false;
+              closePayModal();
+              await syncFromServer();
+              showToast(`Payment reference (${paymentRef}) submitted for ${bnVal}!`);
+              return;
+            }
+          } catch (err) {
+            console.warn('Server payment submit failed, falling back locally:', err);
+          }
+
+          // Local fallback
+          if (submitBtn) submitBtn.disabled = false;
+          state.bookings = state.bookings.map(b =>
+            b.id === bnVal ? { ...b, payerName, payerNumber, paymentRef } : b
+          );
+          saveBookings(state.bookings);
+          closePayModal();
+          renderAll();
+          showToast(`Payment reference (${paymentRef}) submitted for ${bnVal}!`);
+        });
+      }
+
+      const bookingForm = document.getElementById('booking-form');
+      if (bookingForm) {
+        bookingForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          if (state.selectedSlots.length === 0) {
+            showToast('Please select at least 1 time slot first.', 'error');
+            return;
+          }
+
+          const nameInput = document.getElementById('player-name');
+          const contactInput = document.getElementById('player-contact');
+          const submitBtn = document.getElementById('confirm-booking-btn');
+          const playerName = nameInput ? nameInput.value.trim() : '';
+          const playerContact = contactInput ? contactInput.value.trim() : '';
+
+          if (!playerName || !playerContact) {
+            showToast('Please enter your name and contact details.', 'error');
+            return;
+          }
+
+          const total =
+            state.selectedSlots.length * state.courtRate +
+            state.paddleQty * state.paddleRate +
+            (state.hasBalls ? BALLS_PRICE : 0);
+
+          const newBooking = {
+            id: 'BN-' + Math.floor(1000 + Math.random() * 9000),
+            courtId: SINGLE_COURT.id,
+            date: state.selectedDate,
+            slots: [...state.selectedSlots],
+            players: state.players,
+            playerName,
+            playerContact,
+            paddleQty: state.paddleQty,
+            hasBalls: state.hasBalls,
+            total,
+            status: 'Pending',
+            isUserBooking: true
+          };
+
+          if (submitBtn) submitBtn.disabled = true;
+
+          try {
+            const res = await fetch(`${API_URL}?action=create_booking`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(newBooking)
+            });
+            const data = await res.json();
+
+            if (res.status === 409) {
+              showToast(data.error || 'That time slot was just taken!', 'error');
+              await syncFromServer();
+              if (submitBtn) submitBtn.disabled = false;
+              return;
+            }
+
+            if (res.ok && data.success) {
+              addMyBookingId(newBooking.id);
+              state.selectedSlots = [];
+              state.paddleQty = 0;
+              state.hasBalls = false;
+              if (nameInput) nameInput.value = '';
+              if (contactInput) contactInput.value = '';
+
+              await syncFromServer();
+              if (submitBtn) submitBtn.disabled = false;
+              showToast(`Booking request submitted (${newBooking.id})! Awaiting 50% down payment confirmation.`);
+              switchTab('bookings');
+              return;
+            }
+          } catch (err) {
+            console.warn('Server create failed, falling back locally:', err);
+          }
+
+          if (submitBtn) submitBtn.disabled = false;
+          addMyBookingId(newBooking.id);
+          state.bookings.unshift(newBooking);
+          saveBookings(state.bookings);
+
+          state.selectedSlots = [];
+          state.paddleQty = 0;
+          state.hasBalls = false;
+          if (nameInput) nameInput.value = '';
+          if (contactInput) contactInput.value = '';
+
+          renderAll();
+          showToast(`Booking request submitted (${newBooking.id})! Awaiting 50% down payment confirmation.`);
+          switchTab('bookings');
+        });
+      }
+
+      renderAll();
+      syncFromServer();
+      setInterval(() => syncFromServer(true), 5000);
+    });
+  </script>
+</body>
+</html>
